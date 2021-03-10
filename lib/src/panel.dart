@@ -218,6 +218,8 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
 
   bool _isPanelVisible = true;
 
+  bool _skippedFirstHit = false;
+
   @override
   void initState() {
     super.initState();
@@ -230,6 +232,9 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
             : 1.0 //set the default panel state (i.e. set initial value of _ac)
         )
       ..addListener(() {
+        // skip first hit of [_ac] after creation
+        if (!_skippedFirstHit) return _skippedFirstHit = true;
+
         if (widget.onPanelSlide != null) widget.onPanelSlide(_ac);
 
         if (widget.onPanelOpened != null && _ac.value == 1.0) widget.onPanelOpened();
