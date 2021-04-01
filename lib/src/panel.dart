@@ -291,7 +291,11 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
         return _panel(context, constraints);
       }));
     } else {
-      return _panel(context, null);
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          return _panel(context, constraints);
+        },
+      );
     }
   }
 
