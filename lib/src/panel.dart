@@ -163,45 +163,52 @@ class SlidingUpPanel extends StatefulWidget {
   /// Duration of open and close animations
   final Duration animationDuration;
 
-  SlidingUpPanel({
-    Key key,
-    this.panel,
-    this.panelBuilder,
-    this.body,
-    this.collapsed,
-    this.minHeight = 100.0,
-    this.maxHeight = 500.0,
-    this.snapPoint,
-    this.border,
-    this.borderRadius,
-    this.boxShadow = const <BoxShadow>[
-      BoxShadow(
-        blurRadius: 8.0,
-        color: Color.fromRGBO(0, 0, 0, 0.25),
-      )
-    ],
-    this.color = Colors.white,
-    this.padding,
-    this.margin,
-    this.renderPanelSheet = true,
-    this.panelSnapping = true,
-    this.controller,
-    this.backdropEnabled = false,
-    this.backdropColor = Colors.black,
-    this.backdropOpacity = 0.5,
-    this.backdropTapClosesPanel = true,
-    this.onPanelSlide,
-    this.onPanelOpened,
-    this.onPanelClosed,
-    this.parallaxEnabled = false,
-    this.parallaxOffset = 0.1,
-    this.isDraggable = true,
-    this.slideDirection = SlideDirection.up,
-    this.defaultPanelState = PanelState.closed,
-    this.header,
-    this.footer,
-    this.animationDuration = const Duration(milliseconds: 300),
-  })  : assert(panel != null || panelBuilder != null),
+  /// Applies SafeArea and LayoutBuilder widgets to either panel or panelBuilder.
+  /// The default value is false.
+  /// Use this only if you have issues with widgets getting cut off in landscape
+  /// mode on certain devices, such as iPhones with notches.
+  final bool applySafeArea;
+
+  SlidingUpPanel(
+      {Key key,
+      this.panel,
+      this.panelBuilder,
+      this.body,
+      this.collapsed,
+      this.minHeight = 100.0,
+      this.maxHeight = 500.0,
+      this.snapPoint,
+      this.border,
+      this.borderRadius,
+      this.boxShadow = const <BoxShadow>[
+        BoxShadow(
+          blurRadius: 8.0,
+          color: Color.fromRGBO(0, 0, 0, 0.25),
+        )
+      ],
+      this.color = Colors.white,
+      this.padding,
+      this.margin,
+      this.renderPanelSheet = true,
+      this.panelSnapping = true,
+      this.controller,
+      this.backdropEnabled = false,
+      this.backdropColor = Colors.black,
+      this.backdropOpacity = 0.5,
+      this.backdropTapClosesPanel = true,
+      this.onPanelSlide,
+      this.onPanelOpened,
+      this.onPanelClosed,
+      this.parallaxEnabled = false,
+      this.parallaxOffset = 0.1,
+      this.isDraggable = true,
+      this.slideDirection = SlideDirection.up,
+      this.defaultPanelState = PanelState.closed,
+      this.header,
+      this.footer,
+      this.animationDuration = const Duration(milliseconds: 300),
+      this.applySafeArea = false})
+      : assert(panel != null || panelBuilder != null),
         assert(0 <= backdropOpacity && backdropOpacity <= 1.0),
         assert(snapPoint == null || 0 < snapPoint && snapPoint < 1.0),
         super(key: key);
@@ -218,6 +225,8 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
   VelocityTracker _vt = new VelocityTracker.withKind(PointerDeviceKind.touch);
 
   bool _isPanelVisible = true;
+  bool shouldSlide = true;
+  bool slideStarted = false;
 
   double _acPrevValue;
 
@@ -277,6 +286,16 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
+    if (widget.applySafeArea) {
+      return SafeArea(child: LayoutBuilder(builder: (context, constraints) {
+        return _panel(context, constraints);
+      }));
+    } else {
+      return _panel(context, null);
+    }
+  }
+
+  Widget _panel(BuildContext context, BoxConstraints constraints) {
     return Stack(
       alignment: widget.slideDirection == SlideDirection.up ? Alignment.bottomCenter : Alignment.topCenter,
       children: <Widget>[
@@ -292,7 +311,7 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
                 },
                 child: Container(
                   height: MediaQuery.of(context).size.height,
-                  width: MediaQuery.of(context).size.width,
+                  width: constraints.maxWidth,
                   child: widget.body,
                 ),
               )
@@ -326,7 +345,6 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
                       );
                     }),
               ),
-
         //the actual sliding part
         !_isPanelVisible
             ? Container()
@@ -336,6 +354,7 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
                   builder: (context, child) {
                     return Container(
                       height: _ac.value * (widget.maxHeight - widget.minHeight) + widget.minHeight,
+                      width: constraints.maxWidth,
                       margin: widget.margin,
                       padding: widget.padding,
                       decoration: widget.renderPanelSheet
@@ -355,11 +374,12 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
                       Positioned(
                           top: widget.slideDirection == SlideDirection.up ? 0.0 : null,
                           bottom: widget.slideDirection == SlideDirection.down ? 0.0 : null,
-                          width: MediaQuery.of(context).size.width -
+                          width: constraints.maxWidth -
                               (widget.margin != null ? widget.margin.horizontal : 0) -
                               (widget.padding != null ? widget.padding.horizontal : 0),
                           child: Container(
                             height: widget.maxHeight,
+                            width: constraints.maxWidth,
                             child: widget.panel != null ? widget.panel : widget.panelBuilder(context, _sc, _ac),
                           )),
 
@@ -439,50 +459,65 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
     return Listener(
       onPointerDown: (PointerDownEvent p) => _vt.addPosition(p.timeStamp, p.position),
       onPointerMove: (PointerMoveEvent p) {
-        _vt.addPosition(p.timeStamp, p.position); // add current position for velocity tracking
-        _onGestureSlide(p.delta.dy);
+        _vt.addPosition(p.timeStamp, p.position);
+        // add current position for velocity tracking
+        if (p.delta.dx.abs() > p.delta.dy.abs() && !slideStarted) {
+          shouldSlide = false;
+          slideStarted = true;
+        } else if (p.delta.dx.abs() < p.delta.dy.abs() && !slideStarted) {
+          shouldSlide = true;
+          slideStarted = true;
+        }
+        if (shouldSlide) {
+          _onGestureSlide(p.delta.dy);
+        }
       },
-      onPointerUp: (PointerUpEvent p) => _onGestureEnd(_vt.getVelocity()),
+      onPointerUp: (PointerUpEvent p) {
+        if (shouldSlide) {
+          _onGestureEnd(_vt.getVelocity());
+        } else {
+          shouldSlide = true;
+        }
+        slideStarted = false;
+      },
       child: child,
     );
   }
 
   // handles the sliding gesture
   void _onGestureSlide(double dy) {
-    if (_isPanelOpen && _sc.hasClients) {
-      if (_sc.offset <= 0) {
-        setState(() {
-          if (widget.slideDirection == SlideDirection.up) {
-            if (_sc.position.axisDirection == AxisDirection.down) {
-              _scrollingEnabled = dy < 0;
-            } else if (_sc.position.axisDirection == AxisDirection.up) {
-              _scrollingEnabled = true;
-            }
-          } else if (widget.slideDirection == SlideDirection.down) {
-            if (_sc.position.axisDirection == AxisDirection.down) {
-              _scrollingEnabled = true;
-            } else if (_sc.position.axisDirection == AxisDirection.up) {
-              _scrollingEnabled = dy > 0;
-            }
+    if (_isPanelOpen && _sc.hasClients && (_sc.positions.length > 1 || _sc.offset <= 0)) {
+      setState(() {
+        if (widget.slideDirection == SlideDirection.up) {
+          if (_sc.position.axisDirection == AxisDirection.down) {
+            _scrollingEnabled = dy < 0;
+          } else if (_sc.position.axisDirection == AxisDirection.up) {
+            _scrollingEnabled = true;
           }
-        });
-      } else if (_sc.offset >= _sc.position.maxScrollExtent) {
-        setState(() {
-          if (widget.slideDirection == SlideDirection.up) {
-            if (_sc.position.axisDirection == AxisDirection.down) {
-              _scrollingEnabled = true;
-            } else if (_sc.position.axisDirection == AxisDirection.up) {
-              _scrollingEnabled = dy < 0;
-            }
-          } else if (widget.slideDirection == SlideDirection.down) {
-            if (_sc.position.axisDirection == AxisDirection.down) {
-              _scrollingEnabled = dy > 0;
-            } else if (_sc.position.axisDirection == AxisDirection.up) {
-              _scrollingEnabled = true;
-            }
+        } else if (widget.slideDirection == SlideDirection.down) {
+          if (_sc.position.axisDirection == AxisDirection.down) {
+            _scrollingEnabled = true;
+          } else if (_sc.position.axisDirection == AxisDirection.up) {
+            _scrollingEnabled = dy > 0;
           }
-        });
-      }
+        }
+      });
+    } else if (_sc.offset >= _sc.position.maxScrollExtent) {
+      setState(() {
+        if (widget.slideDirection == SlideDirection.up) {
+          if (_sc.position.axisDirection == AxisDirection.down) {
+            _scrollingEnabled = true;
+          } else if (_sc.position.axisDirection == AxisDirection.up) {
+            _scrollingEnabled = dy < 0;
+          }
+        } else if (widget.slideDirection == SlideDirection.down) {
+          if (_sc.position.axisDirection == AxisDirection.down) {
+            _scrollingEnabled = dy > 0;
+          } else if (_sc.position.axisDirection == AxisDirection.up) {
+            _scrollingEnabled = true;
+          }
+        }
+      });
     }
 
     // only slide the panel if scrolling is not enabled
