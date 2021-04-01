@@ -217,6 +217,8 @@ class SlidingUpPanel extends StatefulWidget {
   _SlidingUpPanelState createState() => _SlidingUpPanelState();
 }
 
+enum _ExtendedPanelState { open, closed, snapped }
+
 class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProviderStateMixin {
   AnimationController _ac;
 
@@ -228,11 +230,22 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
   bool shouldSlide = true;
   bool slideStarted = false;
 
+  _ExtendedPanelState _lastPanelState;
+
   double _acPrevValue;
 
   @override
   void initState() {
     super.initState();
+
+    switch (widget.defaultPanelState) {
+      case PanelState.open:
+        _lastPanelState = _ExtendedPanelState.open;
+        break;
+      case PanelState.closed:
+        _lastPanelState = _ExtendedPanelState.closed;
+        break;
+    }
 
     _acPrevValue = widget.defaultPanelState == PanelState.closed ? 0.0 : 1.0;
     _ac = new AnimationController(
@@ -244,11 +257,23 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
         if (_acPrevValue == _ac.value) return;
         _acPrevValue = _ac.value;
 
-        if (widget.onPanelSlide != null) widget.onPanelSlide(_ac);
+        if (widget.onPanelSlide != null) {
+          widget.onPanelSlide(_ac);
+        }
 
-        if (widget.onPanelOpened != null && _ac.value == 1.0) widget.onPanelOpened();
+        if (widget.snapPoint != null && _ac.value > widget.snapPoint - 0.01 && _ac.value < widget.snapPoint + 0.01) {
+          _lastPanelState = _ExtendedPanelState.snapped;
+        }
 
-        if (widget.onPanelClosed != null && _ac.value == 0.0) widget.onPanelClosed();
+        if (_ac.value == 1.0) {
+          _lastPanelState = _ExtendedPanelState.open;
+          if (widget.onPanelOpened != null) widget.onPanelOpened();
+        }
+
+        if (_ac.value == 0.0) {
+          _lastPanelState = _ExtendedPanelState.closed;
+          if (widget.onPanelClosed != null) widget.onPanelClosed();
+        }
       });
 
     // prevent the panel content from being scrolled only if the widget is
@@ -537,6 +562,7 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
   void _onGestureEnd(Velocity v) {
     double minFlingVelocity = 365.0;
     double kSnap = 8;
+    double snappingThreshold = 100;
 
     //let the current animation finish before starting a new one
     if (_ac.isAnimating) return;
@@ -552,10 +578,13 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
     if (widget.slideDirection == SlideDirection.down) visualVelocity = -visualVelocity;
 
     // get minimum distances to figure out where the panel is at
-    double d2Close = _ac.value;
-    double d2Open = 1 - _ac.value;
-    double d2Snap =
-        ((widget.snapPoint ?? 3) - _ac.value).abs(); // large value if null results in not every being the min
+    //
+    final positionInPixels = widget.maxHeight * _ac.value;
+    final snapPositionInPixels = widget.snapPoint != null ? widget.snapPoint * widget.maxHeight : double.infinity;
+
+    double d2Close = positionInPixels;
+    double d2Open = widget.maxHeight - positionInPixels;
+    double d2Snap = (snapPositionInPixels - positionInPixels).abs();
     double minDistance = min(d2Close, min(d2Snap, d2Open));
 
     // check if velocity is sufficient for a fling
@@ -584,13 +613,46 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
     }
 
     // check if the controller is already halfway there
+
     if (widget.panelSnapping) {
-      if (minDistance == d2Close) {
-        _close();
-      } else if (minDistance == d2Snap) {
-        _flingPanelToPosition(widget.snapPoint, visualVelocity);
-      } else {
-        _open();
+      switch (_lastPanelState) {
+        case _ExtendedPanelState.open:
+          if (d2Open < snappingThreshold) {
+            _open();
+            break;
+          }
+          final closestPointBehind =
+              positionInPixels < snapPositionInPixels ? _ExtendedPanelState.closed : _ExtendedPanelState.snapped;
+          if (closestPointBehind == _ExtendedPanelState.closed) {
+            _close();
+          } else {
+            _flingPanelToPosition(widget.snapPoint, visualVelocity);
+          }
+          break;
+        case _ExtendedPanelState.closed:
+          if (d2Close < snappingThreshold) {
+            _close();
+          } else if (d2Snap < (snapPositionInPixels - snappingThreshold).abs()) {
+            _flingPanelToPosition(widget.snapPoint, visualVelocity);
+          } else {
+            _open();
+          }
+
+          break;
+        case _ExtendedPanelState.snapped:
+          if (d2Snap < snappingThreshold) {
+            _flingPanelToPosition(widget.snapPoint, visualVelocity);
+            break;
+          }
+          final closestPoint =
+              positionInPixels < snapPositionInPixels ? _ExtendedPanelState.closed : _ExtendedPanelState.open;
+          if (closestPoint == _ExtendedPanelState.open) {
+            _open();
+          } else {
+            _close();
+          }
+
+          break;
       }
     }
   }
