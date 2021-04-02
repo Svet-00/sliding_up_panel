@@ -306,6 +306,14 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
       }
     });
 
+    _ac.addListener(() {
+      if ((widget.snapPoint != null && _ac.value == widget.snapPoint) ||
+          (widget.slideDirection == SlideDirection.up && _ac.value <= 0) ||
+          (widget.slideDirection == SlideDirection.down && _isPanelOpen)) {
+        _scrollingEnabled = false;
+      }
+    });
+
     widget.controller?._addState(this);
   }
 
