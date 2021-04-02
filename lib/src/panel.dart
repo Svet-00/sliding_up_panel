@@ -568,7 +568,7 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
 
   // handles when user stops sliding
   void _onGestureEnd(Velocity v) {
-    double minFlingVelocity = 365.0;
+    double minFlingVelocity = 1000.0;
     double kSnap = 8;
     double snappingThreshold = 100;
 
