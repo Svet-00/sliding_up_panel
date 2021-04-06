@@ -169,46 +169,58 @@ class SlidingUpPanel extends StatefulWidget {
   /// mode on certain devices, such as iPhones with notches.
   final bool applySafeArea;
 
-  SlidingUpPanel(
-      {Key key,
-      this.panel,
-      this.panelBuilder,
-      this.body,
-      this.collapsed,
-      this.minHeight = 100.0,
-      this.maxHeight = 500.0,
-      this.snapPoint,
-      this.border,
-      this.borderRadius,
-      this.boxShadow = const <BoxShadow>[
-        BoxShadow(
-          blurRadius: 8.0,
-          color: Color.fromRGBO(0, 0, 0, 0.25),
-        )
-      ],
-      this.color = Colors.white,
-      this.padding,
-      this.margin,
-      this.renderPanelSheet = true,
-      this.panelSnapping = true,
-      this.controller,
-      this.backdropEnabled = false,
-      this.backdropColor = Colors.black,
-      this.backdropOpacity = 0.5,
-      this.backdropTapClosesPanel = true,
-      this.onPanelSlide,
-      this.onPanelOpened,
-      this.onPanelClosed,
-      this.parallaxEnabled = false,
-      this.parallaxOffset = 0.1,
-      this.isDraggable = true,
-      this.slideDirection = SlideDirection.up,
-      this.defaultPanelState = PanelState.closed,
-      this.header,
-      this.footer,
-      this.animationDuration = const Duration(milliseconds: 300),
-      this.applySafeArea = false})
-      : assert(panel != null || panelBuilder != null),
+  /// Adds ability to inject custom animation controller. For example to
+  /// build a custom route with panel.
+  ///
+  /// Prefer using [controller] as it provides convenient api
+  /// fot manipulating [panel].
+  ///
+  /// Pass 0.0 as initial value if [defaultPanelState] is [PanelState.closed] and 1.0 otherwise.
+  ///
+  /// Be sure to pass same value to [animationDuration] passed to this widget and [animationController].
+  final AnimationController animationController;
+
+  SlidingUpPanel({
+    Key key,
+    this.panel,
+    this.panelBuilder,
+    this.body,
+    this.collapsed,
+    this.minHeight = 100.0,
+    this.maxHeight = 500.0,
+    this.snapPoint,
+    this.border,
+    this.borderRadius,
+    this.boxShadow = const <BoxShadow>[
+      BoxShadow(
+        blurRadius: 8.0,
+        color: Color.fromRGBO(0, 0, 0, 0.25),
+      )
+    ],
+    this.color = Colors.white,
+    this.padding,
+    this.margin,
+    this.renderPanelSheet = true,
+    this.panelSnapping = true,
+    this.controller,
+    this.backdropEnabled = false,
+    this.backdropColor = Colors.black,
+    this.backdropOpacity = 0.5,
+    this.backdropTapClosesPanel = true,
+    this.onPanelSlide,
+    this.onPanelOpened,
+    this.onPanelClosed,
+    this.parallaxEnabled = false,
+    this.parallaxOffset = 0.1,
+    this.isDraggable = true,
+    this.slideDirection = SlideDirection.up,
+    this.defaultPanelState = PanelState.closed,
+    this.header,
+    this.footer,
+    this.animationDuration = const Duration(milliseconds: 300),
+    this.applySafeArea = false,
+    this.animationController,
+  })  : assert(panel != null || panelBuilder != null),
         assert(0 <= backdropOpacity && backdropOpacity <= 1.0),
         assert(snapPoint == null || 0 < snapPoint && snapPoint < 1.0),
         super(key: key);
@@ -248,33 +260,37 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
     }
 
     _acPrevValue = widget.defaultPanelState == PanelState.closed ? 0.0 : 1.0;
-    _ac = new AnimationController(
-        vsync: this,
-        duration: widget.animationDuration,
-        value: _acPrevValue //set the default panel state (i.e. set initial value of _ac)
-        )
-      ..addListener(() {
-        if (_acPrevValue == _ac.value) return;
-        _acPrevValue = _ac.value;
+    _ac = widget.animationController ??
+        new AnimationController(
+            vsync: this,
+            duration: widget.animationDuration,
+            value: _acPrevValue //set the default panel state (i.e. set initial value of _ac)
+            );
 
-        if (widget.onPanelSlide != null) {
-          widget.onPanelSlide(_ac);
-        }
+    assert(_ac.duration == widget.animationDuration);
 
-        if (widget.snapPoint != null && _ac.value > widget.snapPoint - 0.01 && _ac.value < widget.snapPoint + 0.01) {
-          _lastPanelState = _ExtendedPanelState.snapped;
-        }
+    _ac.addListener(() {
+      if (_acPrevValue == _ac.value) return;
+      _acPrevValue = _ac.value;
 
-        if (_ac.value == 1.0) {
-          _lastPanelState = _ExtendedPanelState.open;
-          if (widget.onPanelOpened != null) widget.onPanelOpened();
-        }
+      if (widget.onPanelSlide != null) {
+        widget.onPanelSlide(_ac);
+      }
 
-        if (_ac.value == 0.0) {
-          _lastPanelState = _ExtendedPanelState.closed;
-          if (widget.onPanelClosed != null) widget.onPanelClosed();
-        }
-      });
+      if (widget.snapPoint != null && _ac.value > widget.snapPoint - 0.01 && _ac.value < widget.snapPoint + 0.01) {
+        _lastPanelState = _ExtendedPanelState.snapped;
+      }
+
+      if (_ac.value == 1.0) {
+        _lastPanelState = _ExtendedPanelState.open;
+        if (widget.onPanelOpened != null) widget.onPanelOpened();
+      }
+
+      if (_ac.value == 0.0) {
+        _lastPanelState = _ExtendedPanelState.closed;
+        if (widget.onPanelClosed != null) widget.onPanelClosed();
+      }
+    });
 
     // prevent the panel content from being scrolled only if the widget is
     // draggable and panel scrolling is enabled
@@ -467,7 +483,7 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
 
   @override
   void dispose() {
-    _ac.dispose();
+    if (widget.animationController == null) _ac.dispose();
     super.dispose();
   }
 
@@ -754,7 +770,7 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
   bool get _isPanelShown => _isPanelVisible;
 }
 
-class PanelController {
+class PanelController extends Listenable {
   _SlidingUpPanelState _panelState;
 
   void _addState(_SlidingUpPanelState panelState) {
@@ -859,5 +875,15 @@ class PanelController {
   bool get isPanelShown {
     assert(isAttached, "PanelController must be attached to a SlidingupPanel");
     return _panelState._isPanelShown;
+  }
+
+  @override
+  void addListener(listener) {
+    _panelState._ac.addListener(listener);
+  }
+
+  @override
+  void removeListener(listener) {
+    _panelState._ac.addListener(listener);
   }
 }
