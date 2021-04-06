@@ -879,11 +879,13 @@ class PanelController extends Listenable {
 
   @override
   void addListener(listener) {
+    assert(isAttached, "PanelController must be attached to a SlidingupPanel");
     _panelState._ac.addListener(listener);
   }
 
   @override
   void removeListener(listener) {
+    assert(isAttached, "PanelController must be attached to a SlidingupPanel");
     _panelState._ac.addListener(listener);
   }
 }
