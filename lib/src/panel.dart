@@ -330,7 +330,7 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
       }
     });
 
-    widget.controller?._addState(this);
+    widget.controller?._setCurrentState(this);
   }
 
   @override
@@ -772,8 +772,14 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
 
 class PanelController extends Listenable {
   _SlidingUpPanelState _panelState;
+  final List<VoidCallback> listeners = <VoidCallback>[];
 
-  void _addState(_SlidingUpPanelState panelState) {
+  void _setCurrentState(_SlidingUpPanelState panelState) {
+    if (_panelState == panelState) return;
+    if (_panelState != null) {
+      listeners.forEach((listener) => _panelState._ac.removeListener(listener));
+    }
+    listeners.forEach((listener) => panelState._ac.addListener(listener));
     this._panelState = panelState;
   }
 
@@ -879,13 +885,13 @@ class PanelController extends Listenable {
 
   @override
   void addListener(listener) {
-    assert(isAttached, "PanelController must be attached to a SlidingupPanel");
-    _panelState._ac.addListener(listener);
+    listeners.add(listener);
+    if (isAttached) _panelState._ac.addListener(listener);
   }
 
   @override
   void removeListener(listener) {
-    assert(isAttached, "PanelController must be attached to a SlidingupPanel");
-    _panelState._ac.addListener(listener);
+    listeners.remove(listener);
+    if (isAttached) _panelState._ac.addListener(listener);
   }
 }
