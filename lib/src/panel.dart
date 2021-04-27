@@ -555,7 +555,7 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
           }
         }
       });
-    } else if (_sc.offset >= _sc.position.maxScrollExtent) {
+    } else if (_sc.hasClients && _sc.offset >= _sc.position.maxScrollExtent) {
       setState(() {
         if (widget.slideDirection == SlideDirection.up) {
           if (_sc.position.axisDirection == AxisDirection.down) {
