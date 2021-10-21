@@ -6,10 +6,11 @@ Copyright: © 2020, Akshath Jain. All rights reserved.
 Licensing: More information can be found here: https://github.com/akshathjain/sliding_up_panel/blob/master/LICENSE
 */
 
-import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/rendering.dart';
 
@@ -59,9 +60,13 @@ class SlidingUpPanel extends StatefulWidget {
   final Widget? footer;
 
   /// The height of the sliding panel when fully collapsed.
+  ///
+  /// When panel height == [minHeight], panel position < 0.05
   final double minHeight;
 
   /// The height of the sliding panel when fully open.
+  ///
+  /// When panel height == [maxHeight], panel position > 0.95
   final double maxHeight;
 
   /// A point between [minHeight] and [maxHeight] that the panel snaps to
@@ -274,7 +279,7 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
       _acPrevValue = _ac.value;
 
       if (widget.onPanelSlide != null) {
-        widget.onPanelSlide! (_ac);
+        widget.onPanelSlide!(_ac);
       }
 
       if (widget.snapPoint != null && _ac.value > widget.snapPoint! - 0.01 && _ac.value < widget.snapPoint! + 0.01) {
@@ -539,6 +544,8 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
 
   // handles the sliding gesture
   void _onGestureSlide(double dy) {
+    // TODO: research for warning
+    // ignore: invalid_use_of_protected_member
     if (_isPanelOpen && _sc.hasClients && (_sc.positions.length > 1 || _sc.offset <= 0)) {
       setState(() {
         if (widget.slideDirection == SlideDirection.up) {
@@ -555,7 +562,7 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
           }
         }
       });
-    } else if (_sc.offset >= _sc.position.maxScrollExtent) {
+    } else if (_sc.hasClients && _sc.offset >= _sc.position.maxScrollExtent) {
       setState(() {
         if (widget.slideDirection == SlideDirection.up) {
           if (_sc.position.axisDirection == AxisDirection.down) {
@@ -773,6 +780,8 @@ class _SlidingUpPanelState extends State<SlidingUpPanel> with SingleTickerProvid
 class PanelController extends Listenable {
   _SlidingUpPanelState? _panelState;
   final List<VoidCallback> listeners = <VoidCallback>[];
+  final _attachedCompleter = Completer<void>();
+  Future<void> get attachedFututre => _attachedCompleter.future;
 
   void _setCurrentState(_SlidingUpPanelState panelState) {
     if (_panelState == panelState) return;
@@ -781,6 +790,9 @@ class PanelController extends Listenable {
     }
     listeners.forEach((listener) => panelState._ac.addListener(listener));
     this._panelState = panelState;
+    if (!_attachedCompleter.isCompleted) {
+      _attachedCompleter.complete();
+    }
   }
 
   /// Determine if the panelController is attached to an instance
